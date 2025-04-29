@@ -8,6 +8,7 @@
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{url}
+\usepackage{subcaption}
 \urlstyle{same}
 % Allow URL line breaks in a sensible way
 \def\UrlBreaks{\do\/\do-\do.\do=\do_\do?\do&\do\%}
@@ -76,7 +77,11 @@ This autoregressive process does not inherently ensure factual accuracy, as the 
 
 Furthermore, the variability of LLM responses as a function of the sampling temperature parameter provides an indirect measure of model uncertainty. At lower temperatures (e.g., 0.01), the model's outputs are more deterministic, closely adhering to the highest probability tokens as determined by the training data. 
 
-<Insert Temperature equation>
+\begin{equation}
+p_i = \frac{\exp(z_i/\tau)}{\sum_j \exp(z_j/\tau)}
+\end{equation}
+
+Where $p_i$ is the probability of token $i$, $z_i$ is the logit (raw score) for token $i$, and $\tau$ is the temperature parameter. At lower temperatures ($\tau \to 0$), the distribution becomes more concentrated on the highest probability tokens, while at higher temperatures ($\tau > 1$), the distribution becomes more uniform, allowing for more diverse sampling.
 
 As the temperature increases, the model samples from a broader distribution, thereby increasing output diversity but also the likelihood of generating less probable—and potentially more creative responses which might work for some cases \cite{hallucinations_drug,temperature_effect}. Notably, if the model's answers to a given question change significantly across different temperature settings, this variability is indicative of underlying uncertainty and should diminish confidence in the model's output \cite{detecting_hallucinations}.
 
@@ -105,7 +110,23 @@ We evaluate four open-source LLMs: Mistral-7B v0.3 \cite{mistral_7b}, Qwen2.5-0.
 
 A prevalent approach for estimating LLM confidence involves computing log probability scores derived from output token logits \cite{emnlp_2015}. While studies \cite{strength_in_numbers} demonstrate that high-probability tokens often correlate with factual correctness, many studies also counter the use of log probs and empirically show that such metrics alone (without calibration) are insufficient for detecting hallucinations \cite{cycles_thought,calibrated_hallucinate}. Our experiments reveal that log probability scores frequently exhibit false confidence—models assign high likelihoods to incorrect answers, particularly for queries outside their training distribution.
 
-<example chart of the log probs>
+\begin{figure}[ht]
+\centering
+\begin{subfigure}{0.48\textwidth}
+    \includegraphics[width=\textwidth]{images/low_conf_mistral.png}
+    \caption{Low confidence responses from Mistral-7B showing increased variance at higher temperatures}
+    \label{fig:low_conf}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.48\textwidth}
+    \includegraphics[width=\textwidth]{images/unsupervised_entropy.png}
+    \caption{Unsupervised entropy-based detection of hallucinated responses}
+    \label{fig:entropy}
+\end{subfigure}
+\caption{Analysis of model confidence and hallucination detection through temperature sampling}
+\label{fig:confidence_analysis}
+\end{figure}
+
 
 To address this limitation, we propose augmenting confidence estimation with temperature-based stochastic perturbations. Unlike static log probability assessments, our framework evaluates whether the model's core answer persists when sampling across controlled temperature increments ($\tau = 0.01, 0.1, 0.3$). For instance, when queried about historical events absent from training data, models may generate high-probability but incorrect answers (e.g., "Hinton" for the 2010 Turing Award). By contrast, increasing $\tau$ introduces variability that exposes this uncertainty: divergent answers emerge despite initially high log probabilities.
 
@@ -140,8 +161,16 @@ The final curated set contains 100 high-confidence hallucination instances exhib
 Our evaluation metric is designed to capture both the semantic fidelity and the presence of essential keywords in generated answers, addressing the limitations of relying solely on either lexical or semantic similarity. Many simple questions, as observed in our easy questions dataset, may yield answers with high semantic similarity but lack crucial keywords, or conversely, may contain the correct keywords without preserving the intended meaning. To overcome this, we combine semantic and keyword-based similarity using the Choquet integral, which allows for a flexible, non-additive aggregation that can model the interaction between these two information sources.
 For the semantic similarity component, we utilize a DeBERTa-based model \cite{deberta} fine-tuned on the MNLI dataset \cite{naacl_2018}, replacing the standard BERTScore implementation. Specifically, we use the \texttt{microsoft/deberta-xlarge-mnli} model, which was evaluated on WMT16 \cite{wmt_2016} English translation tasks. This choice is motivated by recent findings that this variant of DeBERTa-MNLI achieves the highest Spearman correlation (0.7781) with human-generated answer quality judgments, ranking first among all tested models\footnote{Rankings available on the official BERTScore repository \url{https://github.com/Tiiiger/bert_score} or at: \url{https://docs.google.com/spreadsheets/d/1RKOVpselB98Nnh_EOC4A2BYn8_201tmPODpNWu4w7xI}}~\cite{emnlp_2015}. The model computes contextualized embeddings for both candidate and reference answers, and the final semantic score is derived from the cosine similarity between these embeddings. This approach ensures that subtle nuances in meaning are captured more effectively than with traditional lexical metrics.
 
+\begin{align}
+P_{\text{BERT}}(A, R) &= \frac{1}{|A|} \sum_{a_i \in A} \max_{r_j \in R} \frac{E_{\text{DeBERTa}}(a_i) \cdot E_{\text{DeBERTa}}(r_j)}{||E_{\text{DeBERTa}}(a_i)|| \cdot ||E_{\text{DeBERTa}}(r_j)||} \\
+R_{\text{BERT}}(A, R) &= \frac{1}{|R|} \sum_{r_j \in R} \max_{a_i \in A} \frac{E_{\text{DeBERTa}}(a_i) \cdot E_{\text{DeBERTa}}(r_j)}{||E_{\text{DeBERTa}}(a_i)|| \cdot ||E_{\text{DeBERTa}}(r_j)||}
+\end{align}
+
 \begin{equation}
-    Sem(A, R) = \cos(\mathbf{E}_{\text{DeBERTa}}(A), \mathbf{E}_{\text{DeBERTa}}(R))
+    \begin{split}
+    \text{Sem}(A, R) &= F1_{\text{BERT}}(A, R) \\
+    &= \frac{2 \cdot P_{\text{BERT}}(A, R) \cdot R_{\text{BERT}}(A, R)}{P_{\text{BERT}}(A, R) + R_{\text{BERT}}(A, R)}
+    \end{split}
 \end{equation}
 
 To assess keyword relevance, we employ the ROUGE-K \cite{rouge_k} metric, which specifically measures the overlap of important keywords between the generated and reference answers. Keywords are extracted using an automated system that combines TF-IDF weighting with position-biased noun phrase detection, ensuring that only the most salient terms are considered. The ROUGE-K score is then calculated as the proportion of reference keywords present in the candidate answer. Further details on the keyword extraction methodology are provided in the dedicated section.
@@ -150,15 +179,33 @@ To assess keyword relevance, we employ the ROUGE-K \cite{rouge_k} metric, which 
     \text{ROUGE-K}(A, R) = \frac{|K(A) \cap K(R)|}{|K(R)|}
 \end{equation}
 
-The aggregation of semantic and keyword components is performed via Choquet integral \cite{choquet1953capacities} with fuzzy measures configured to prioritize synergistic interactions. Our implementation assigns greater weight to the semantic component to emphasize factual correctness, while simultaneously rewarding keyword presence when both components align. Comparative analysis against standard metrics (ROUGE-K \cite{rouge_k}, Rouge-L \cite{rouge_l}, BERTScore \cite{bertscore}) demonstrates statistically significant correlation (p < 0.01) with human expert evaluations. This hybrid approach effectively discriminates between semantically plausible but incomplete answers and lexically accurate but contextually misleading responses, providing enhanced assessment fidelity in LLM hallucination detection frameworks.
+We further refine our metrics using specialized transformation functions that better capture the relationship between raw similarity scores and confidence:
 
 \begin{equation}
-\begin{split}
-SK(A, R) &= C_\mu(Sem(A, R), \text{ROUGE-K}(A, R)) \\
-&= \sum_{i=1}^{2} [f_{\sigma(i)} - f_{\sigma(i-1)}] \cdot \mu(\{A_{\sigma(i)}, \ldots, A_{\sigma(n)}\})
-\end{split}
-\label{eq:sk-score}
+\hat{r} = \frac{\log(1 + k \cdot \text{ROUGE-K}(A, R))}{k} \cdot \tanh(m \cdot \text{ROUGE-K}(A, R))
 \end{equation}
+
+\begin{equation}
+\hat{b} = \frac{\log(1 + k \cdot \text{Sem}(A, R))}{k} \cdot \tanh(m \cdot \text{Sem}(A, R))
+\end{equation}
+
+Where $k=2.718$ (compression rate) and $m=3.141$ (saturation control).
+
+\paragraph{Choquet Integral-Based Fusion.}
+For the final aggregation of semantic and keyword components is performed via Choquet integral \cite{choquet1953capacities} with fuzzy measures configured to prioritize synergistic interactions. Our implementation assigns greater weight to the semantic component to emphasize factual correctness, while simultaneously rewarding keyword presence when both components align. Comparative analysis against standard metrics (ROUGE-K \cite{rouge_k}, Rouge-L \cite{rouge_l}, BERTScore \cite{bertscore}) demonstrates statistically significant correlation (p < 0.01) with human expert evaluations. This hybrid approach effectively discriminates between semantically plausible but incomplete answers and lexically accurate but contextually misleading responses, providing enhanced assessment fidelity in LLM hallucination detection frameworks.
+
+\begin{equation}
+SK = \mu(\{\hat{r}\})\hat{r} + [\mu(\{\hat{r}, \hat{b}\}) - \mu(\{\hat{r}\})]\hat{b}
+\end{equation}
+
+\begin{align}
+\mu(\{\hat{r}, \hat{b}\}) &= 1 - e^{-\lambda(\hat{r}^2+\hat{b}^2+\gamma \hat{r}\hat{b})} \\
+\text{where } \lambda &= 0.85, \gamma = 1.2
+\end{align}
+
+The parameter $\lambda=0.85$ controls the overall magnitude of the fuzzy measure, determining how quickly it approaches 1 as the individual scores increase. This value was empirically determined through grid search optimization on our validation set to balance sensitivity and stability. The interaction parameter $\gamma=1.2$ creates a positive synergy between the metrics, meaning that when both scores are high, their combined effect is greater than the sum of their individual contributions—a property particularly valuable for identifying genuinely factual content that exhibits both semantic fidelity and key information presence.
+
+After obtaining the confidence score $SK$ through the Choquet integral fusion, we calculate the Temperature-Stabilized AUC Score by measuring how these confidence values change across different temperature settings. For each query, we compute $SK$ values at multiple temperatures ($\tau = 0.01, 0.1, 0.2, 0.3$) and calculate the area under the resulting curve, normalized by the potential maximum area. This approach quantifies the stability of confidence as temperature increases, with factual answers maintaining consistently high $SK$ values while hallucinated content shows rapid degradation.
 
 
 \section{Experimental Results}
@@ -260,13 +307,11 @@ Phi-4-14B \cite{phi_4} & 14.0 & 0.06 & 0.98 & 0.29 \\
 
 \section{Conclusion}
 
+In this paper, we presented a novel temperature-based approach for quantifying LLM confidence and detecting hallucinations. Our method enables precise ranking of model outputs based on their sensitivity to temperature perturbations, providing a reliable confidence metric that correlates strongly with factual accuracy. The framework operates without requiring access to model internals or last-layer representations, making it truly model-agnostic and applicable across diverse architectures ranging from 0.5B to 14B parameters. By analyzing semantic and keyword alignment across different temperature values, our approach captures subtle patterns of degradation that effectively discriminate between factual and hallucinated content with high statistical significance.
 
-Our temperature perturbation framework achieves:
-\begin{itemize}
-    \item \textbf{Model Agnosticism:} Operates purely on output text, requiring no logit/layer access
-    \item \textbf{Statistical Robustness:} Maintains significance (Welch's t-test $p < 0.001$) across 100--10k samples
-    \item \textbf{Architecture Independence:} 0.91--0.94 AUC-ROC scores across models ranging from 0.5B (Qwen2.5) to 14B parameters (Phi-4)
-\end{itemize}
+The effectiveness of our method stems from its ability to exploit a fundamental property of language models: when generating content based on parametric knowledge, temperature variations produce minimal semantic drift, whereas hallucinated responses exhibit substantial inconsistency. Our Choquet integral-based fusion technique optimally combines semantic and lexical signals, enabling fine-grained measurement of confidence degradation patterns that remain consistent across model scales and dataset sizes. These properties make our approach particularly valuable for real-world applications where access to model internals is restricted or where multiple model architectures must be evaluated consistently.
+
+Looking forward, our framework opens promising avenues for enhancing LLM reliability in agent systems. Future work will explore extending this approach to evaluate the contribution of external knowledge sources, allowing systems to rank and prioritize information based on how effectively it stabilizes model outputs across temperature settings. This capability could enable more sophisticated knowledge integration mechanisms that dynamically assess source credibility and relevance to the query context. Ultimately, our temperature perturbation methodology provides a powerful and accessible tool for building more trustworthy AI systems that can better communicate their confidence and accurately distinguish what they know from what they merely predict.
 
 \section{Limitations}
 
