@@ -9,6 +9,7 @@
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage{subcaption}
+\usepackage{microtype}
 \urlstyle{same}
 % Allow URL line breaks in a sensible way
 \def\UrlBreaks{\do\/\do-\do.\do=\do_\do?\do&\do\%}
@@ -108,27 +109,27 @@ We evaluate four open-source LLMs: Mistral-7B v0.3 \cite{mistral_7b}, Qwen2.5-0.
 
 \section{Baseline Methods}
 
-A prevalent approach for estimating LLM confidence involves computing log probability scores derived from output token logits \cite{emnlp_2015}. While studies \cite{strength_in_numbers} demonstrate that high-probability tokens often correlate with factual correctness, many studies also counter the use of log probs and empirically show that such metrics alone (without calibration) are insufficient for detecting hallucinations \cite{cycles_thought,calibrated_hallucinate}. Our experiments reveal that log probability scores frequently exhibit false confidence—models assign high likelihoods to incorrect answers, particularly for queries outside their training distribution.
+A prevalent approach for estimating LLM confidence involves computing log probability scores derived from output token logits \cite{emnlp_2015} as shown in figure \ref{fig:entropy}. While studies \cite{strength_in_numbers} demonstrate that high-probability tokens often correlate with factual correctness, many studies also counter the use of log probs and empirically show that such metrics alone (without calibration) are insufficient for detecting hallucinations \cite{cycles_thought,calibrated_hallucinate}. Our experiments reveal that log probability scores frequently exhibit false confidence—models assign high likelihoods to incorrect answers, particularly for queries outside their training distribution.
 
 \begin{figure}[ht]
 \centering
 \begin{subfigure}{0.48\textwidth}
-    \includegraphics[width=\textwidth]{images/low_conf_mistral.png}
-    \caption{Low confidence responses from Mistral-7B showing increased variance at higher temperatures}
-    \label{fig:low_conf}
-\end{subfigure}
-\hfill
-\begin{subfigure}{0.48\textwidth}
     \includegraphics[width=\textwidth]{images/unsupervised_entropy.png}
     \caption{Unsupervised entropy-based detection of hallucinated responses}
     \label{fig:entropy}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.48\textwidth}
+    \includegraphics[width=\textwidth]{images/low_conf_mistral.png}
+    \caption{Low confidence responses from Mistral-7B showing increased variance at higher temperatures}
+    \label{fig:low_conf}
 \end{subfigure}
 \caption{Analysis of model confidence and hallucination detection through temperature sampling}
 \label{fig:confidence_analysis}
 \end{figure}
 
 
-To address this limitation, we propose augmenting confidence estimation with temperature-based stochastic perturbations. Unlike static log probability assessments, our framework evaluates whether the model's core answer persists when sampling across controlled temperature increments ($\tau = 0.01, 0.1, 0.3$). For instance, when queried about historical events absent from training data, models may generate high-probability but incorrect answers (e.g., "Hinton" for the 2010 Turing Award). By contrast, increasing $\tau$ introduces variability that exposes this uncertainty: divergent answers emerge despite initially high log probabilities.
+To address this limitation, we propose augmenting confidence estimation with temperature-based stochastic perturbations. Unlike static log probability assessments, our framework evaluates whether the model's core answer persists when sampling across controlled temperature increments ($\tau = 0.01, 0.1, 0.3$). For instance, when queried about historical events absent from training data, models may generate high-probability but incorrect answers (e.g., "Hinton" for the 2010 Turing Award). By contrast, increasing $\tau$ introduces variability that exposes this uncertainty: divergent answers emerge despite initially high log probabilities, as shown in Figure~\ref{fig:low_conf}. Our approach uses entropy-based measurements to detect these hallucinations (Figure~\ref{fig:entropy}).
 
 
 \section{Intuition}
@@ -256,6 +257,14 @@ We introduce two novel confidence scores to quantify model uncertainty under tem
 
 To assess the discriminative power of these metrics, we conduct Welch's t-test on the distributions of confidence scores from the hallucinated and non-hallucinated buckets. Results confirm that the two distributions are statistically distinct, with a p-value of $p < 10^{-5}$, indicating strong separation between the two groups. The penalized confidence score, in particular, demonstrates high correlation with the AUC score ($r = 0.87$, $p < 0.001$) and effectively reduces confidence for factually incorrect queries, aligning with our design goals.
 
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.45\textwidth]{images/slope_SK_scores.png}
+    \caption{Semantic-keyword based confidence shows that factual answers (blue) maintain consistent SK scores across temperature variations, while hallucinated content (orange) rapidly degrades, using the same set of questions as in Figure \ref{fig:low_conf} with the Mistral model.}
+    \label{fig:sk_confidence}
+\end{figure}
+
+
 \section{Scaling}
 
 \subsection{Dataset Scaling}
@@ -274,6 +283,8 @@ We validate our framework's consistency across dataset sizes, observing statisti
 \end{tabular}
 \caption{Statistical significance across different dataset sizes}
 \end{table}
+
+
 
 The decreasing p-values with larger samples (Cohen's $d = 2.8 \rightarrow 3.1$) confirm enhanced discriminative power at scale, refuting concerns about metric sensitivity to data volume.
 
