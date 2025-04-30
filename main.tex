@@ -90,12 +90,13 @@ As the temperature increases, the model samples from a broader distribution, the
 \begin{figure*}[t]
     \centering
     \includegraphics[width=\textwidth]{images/Figure_teaser.pdf}
+    \Description{Diagram showing how LLM responses vary across temperature settings. Factual questions maintain consistent answers while hallucinated content shows increasing divergence at higher temperatures.}
     \caption{Intuition behind temperature-based confidence scoring}
     \label{fig:intuition}
 \end{figure*}
 
 
-In this work, we propose a quantitative framework see figure \ref{fig:intuition} for assessing LLM confidence by systematically sampling responses at multiple temperature levels. Prior research has demonstrated that language model performance often degrades at higher temperatures; however, other studies suggest that elevated temperatures may be beneficial for certain subjective or domain-specific tasks \cite{hallucinations_drug,temperature_effect,detecting_hallucinations} requiring creativity or discovery of new drugs. Our approach defines model certainty as the consistency of the core response across varying temperatures. Specifically, we use a temperature of 0.01 as a baseline, reflecting outputs most strongly grounded in the training data, and measure the extent of answer variation relative to this baseline. Substantial divergence in responses, particularly at low temperatures, calls into question the reliability of the LLM for that query.
+In this work, we propose a quantitative framework (see figure \ref{fig:intuition}) for assessing LLM confidence by systematically sampling responses at multiple temperature levels. Prior research has demonstrated that language model performance often degrades at higher temperatures \cite{confidence_under_hood,log_probs_reliability}; however, other studies suggest that elevated temperatures may be beneficial for certain subjective or domain-specific tasks \cite{hallucinations_drug,temperature_effect,detecting_hallucinations,monte_carlo_temperature} requiring creativity or discovery of new drugs. Our approach defines model certainty as the consistency of the core response across varying temperatures. Specifically, we use a temperature of 0.01 as a baseline, reflecting outputs most strongly grounded in the training data, and measure the extent of answer variation relative to this baseline. Substantial divergence in responses, particularly at low temperatures, calls into question the reliability of the LLM for that query.
 
 To validate our framework, we focus on straightforward, factually grounded questions for which LLMs are expected to provide highly consistent answers across temperature settings when compared to questions that may cause hallucinated answers.
 Consistency in these cases is interpreted as a proxy for high model confidence, whereas significant variability signals uncertainty and potential unreliability.
@@ -105,7 +106,7 @@ Consistency in these cases is interpreted as a proxy for high model confidence, 
 
 We introduce a novel evaluation framework that leverages temperature sampling to statistically distinguish between hallucinated and non-hallucinated responses in large language models (LLMs). This methodology quantifies model uncertainty by analyzing answer consistency across temperature variations, operationalizing confidence as the stability of outputs under controlled stochasticity.
 
-The framework employs Monte Carlo temperature sampling \cite{monte_carlo_temperature}, similar to, generating multiple responses for each query across a temperature range ($\tau$ = 0.1 to 0.3), with a fixed gap of 0.1 to ensure reproducibility. At $\tau$ = 0.01, outputs reflect the model's most deterministic predictions based on parametric knowledge, while higher $\tau$ values introduce controlled randomness to probe solution-space exploration. Statistical significance is assessed through Welch's t-test, comparing variance metrics between known factual queries and potential hallucinations (p < 0.001 threshold).
+The framework employs Monte Carlo temperature sampling \cite{monte_carlo_temperature}, generating multiple responses for each query across a temperature range ($\tau$ = 0.1 to 0.3), with a fixed gap of 0.1 to ensure reproducibility. At $\tau$ = 0.01, outputs reflect the model's most deterministic predictions based on parametric knowledge, while higher $\tau$ values introduce controlled randomness to probe solution-space exploration. Statistical significance is assessed through Welch's t-test, comparing variance metrics between known factual queries and potential hallucinations (p < 0.001 threshold).
 
 We evaluate four open-source LLMs: Mistral-7B v0.3 \cite{mistral_7b}, Qwen2.5-0.5B \cite{Qwen2.5}, LLaMA-3.2-1B \cite{llama_3.2}, and Phi-4-14B \cite{phi_4}. Each model processes several thousand queries from three different benchmarks, with outputs analyzed across three temperature increments.
 
@@ -138,7 +139,7 @@ A prevalent approach for estimating LLM confidence involves computing log probab
 \end{figure}
 
 
-To address this limitation, we propose augmenting confidence estimation with temperature-based stochastic perturbations. Unlike static log probability assessments, our framework evaluates whether the model's core answer persists when sampling across controlled temperature increments ($\tau = 0.01, 0.1, 0.3$). For instance, when queried about historical events absent from training data, models may generate high-probability but incorrect answers (e.g., "Hinton" for the 2010 Turing Award). By contrast, increasing $\tau$ introduces variability that exposes this uncertainty: divergent answers emerge despite initially high log probabilities, as shown in Figure~\ref{fig:low_conf}. Our approach uses entropy-based measurements to detect these hallucinations (Figure~\ref{fig:entropy}).
+To address this limitation, we propose augmenting confidence estimation with temperature-based stochastic perturbations. Unlike static log probability assessments, our framework evaluates whether the model's core answer persists when sampling across controlled temperature increments ($\tau = 0.01, 0.1, 0.3$). For instance, when queried about historical events absent from training data, models may generate high-probability but incorrect answers (e.g., "Hinton" for the 2010 Turing Award). By contrast, increasing $\tau$ introduces variability that exposes this uncertainty: divergent answers emerge despite initially high log probabilities, as shown in Figure~\ref{fig:low_conf}. Our approach does not use entropy-based measurements to detect these hallucinations (Figure~\ref{fig:entropy}).
 
 
 \section{Intuition}
@@ -157,7 +158,7 @@ We construct two specialized datasets to evaluate hallucination detection capabi
 \begin{itemize}
     \item \textbf{Easy Questions Dataset} comprises 1,200 factually unambiguous queries collected from Perplexity AI's common question repository. Two human annotators independently verified answers through dual-review reconciliation, retaining only questions achieving full inter-annotator agreement (Cohen's $\kappa = 1.0$). This stringent process ensures baseline performance measurement on non-hallucination-prone inputs.
 
-    \item \textbf{Hallucination-Prone Dataset} aggregates 95,180 samples from three established benchmarks \cite{defan_dataset,ignorance_vs_error,halueval} studying LLM failure modes. Through stratified sampling, we extract 1,000 representative examples from each source (3,000 total), then apply a Semantic-Keyword (SK) similarity metric to quantify answer divergence from ground truth references (as provided in the benchmark datasets). Samples scoring below the 15th percentile SK threshold ($\mu = 0.32$, $\sigma = 0.11$) undergo two-stage validation:
+    \item \textbf{Hallucination-Prone Dataset} aggregates 95,180 samples from three established benchmarks \cite{defan_dataset,ignorance_vs_error,halueval} studying LLM failure modes. Through stratified sampling, we extract 1,000 representative examples from each source (3,000 total), then apply a Semantic-Keyword (SK) similarity metric to quantify answer divergence (from ground truth references as provided in the benchmark datasets). Samples scoring below the 15th percentile SK threshold ($\mu = 0.32$, $\sigma = 0.11$) undergo two-stage validation:
     \begin{itemize}
         \item \textit{LLM-as-Judge}: GPT-4-turbo verifies answer incorrectness through structured contradiction analysis
         \item \textit{Human Verification}: Domain experts with access to the ground truth references confirm factual discrepancies through blind annotation.
@@ -202,7 +203,7 @@ We further refine our metrics using specialized transformation functions that be
 Where $k=2.718$ (compression rate) and $m=3.141$ (saturation control).
 
 \paragraph{Choquet Integral-Based Fusion.}
-For the final aggregation of semantic and keyword components is performed via Choquet integral \cite{choquet1953capacities} with fuzzy measures configured to prioritize synergistic interactions. Our implementation assigns greater weight to the semantic component to emphasize factual correctness, while simultaneously rewarding keyword presence when both components align. Comparative analysis against standard metrics (ROUGE-K \cite{rouge_k}, Rouge-L \cite{rouge_l}, BERTScore \cite{bertscore}) demonstrates statistically significant correlation (p < 0.01) with human expert evaluations. This hybrid approach effectively discriminates between semantically plausible but incomplete answers and lexically accurate but contextually misleading responses, providing enhanced assessment fidelity in LLM hallucination detection frameworks.
+The final aggregation of semantic and keyword components is performed via Choquet integral \cite{choquet1953capacities} with fuzzy measures configured to prioritize synergistic interactions. Our implementation assigns greater weight to the semantic component to emphasize factual correctness, while simultaneously rewarding keyword presence when both components align. Comparative analysis against standard metrics (ROUGE-K \cite{rouge_k}, Rouge-L \cite{rouge_l}, BERTScore \cite{bertscore}) demonstrates statistically significant correlation (p < 0.01) with human expert evaluations. This hybrid approach effectively discriminates between semantically plausible but incomplete answers and lexically accurate but contextually misleading responses, providing enhanced assessment fidelity in LLM hallucination detection frameworks.
 
 \begin{equation}
 SK = \mu(\{\hat{r}\})\hat{r} + [\mu(\{\hat{r}, \hat{b}\}) - \mu(\{\hat{r}\})]\hat{b}
@@ -225,7 +226,7 @@ Our analysis reveals statistically significant divergence in confidence distribu
 
 \section{Methodology}
 
-We introduce two confidence scoring metrics to quantify model uncertainty under temperature perturbations see figure \ref{fig:main_approach}:
+We introduce two confidence scoring metrics to quantify model uncertainty under temperature perturbations (see figure \ref{fig:main_approach}):
 
 
 \begin{figure}[ht]
