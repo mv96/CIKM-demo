@@ -13,6 +13,7 @@
 \urlstyle{same}
 % Allow URL line breaks in a sensible way
 \def\UrlBreaks{\do\/\do-\do.\do=\do_\do?\do&\do\%}
+\usepackage{svg}
 
 % Command for collaborators to add red text
 \newcommand{\collab}[1]{\textcolor{red}{#1}}
@@ -86,7 +87,15 @@ Where $p_i$ is the probability of token $i$, $z_i$ is the logit (raw score) for 
 
 As the temperature increases, the model samples from a broader distribution, thereby increasing output diversity but also the likelihood of generating less probable—and potentially more creative responses which might work for some cases \cite{hallucinations_drug,temperature_effect}. Notably, if the model's answers to a given question change significantly across different temperature settings, this variability is indicative of underlying uncertainty and should diminish confidence in the model's output \cite{detecting_hallucinations}.
 
-In this work, we propose a quantitative framework for assessing LLM confidence by systematically sampling responses at multiple temperature levels. Prior research has demonstrated that language model performance often degrades at higher temperatures; however, other studies suggest that elevated temperatures may be beneficial for certain subjective or domain-specific tasks \cite{hallucinations_drug,temperature_effect,detecting_hallucinations} requiring creativity or discovery of new drugs. Our approach defines model certainty as the consistency of the core response across varying temperatures. Specifically, we use a temperature of 0.01 as a baseline, reflecting outputs most strongly grounded in the training data, and measure the extent of answer variation relative to this baseline. Substantial divergence in responses, particularly at low temperatures, calls into question the reliability of the LLM for that query.
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{images/Figure_teaser.pdf}
+    \caption{Intuition behind temperature-based confidence scoring}
+    \label{fig:intuition}
+\end{figure*}
+
+
+In this work, we propose a quantitative framework see figure \ref{fig:intuition} for assessing LLM confidence by systematically sampling responses at multiple temperature levels. Prior research has demonstrated that language model performance often degrades at higher temperatures; however, other studies suggest that elevated temperatures may be beneficial for certain subjective or domain-specific tasks \cite{hallucinations_drug,temperature_effect,detecting_hallucinations} requiring creativity or discovery of new drugs. Our approach defines model certainty as the consistency of the core response across varying temperatures. Specifically, we use a temperature of 0.01 as a baseline, reflecting outputs most strongly grounded in the training data, and measure the extent of answer variation relative to this baseline. Substantial divergence in responses, particularly at low temperatures, calls into question the reliability of the LLM for that query.
 
 To validate our framework, we focus on straightforward, factually grounded questions for which LLMs are expected to provide highly consistent answers across temperature settings when compared to questions that may cause hallucinated answers.
 Consistency in these cases is interpreted as a proxy for high model confidence, whereas significant variability signals uncertainty and potential unreliability.
@@ -174,7 +183,7 @@ R_{\text{BERT}}(A, R) &= \frac{1}{|R|} \sum_{r_j \in R} \max_{a_i \in A} \frac{E
     \end{split}
 \end{equation}
 
-To assess keyword relevance, we employ the ROUGE-K \cite{rouge_k} metric, which specifically measures the overlap of important keywords between the generated and reference answers. Keywords are extracted using an automated system that combines TF-IDF weighting with position-biased noun phrase detection, ensuring that only the most salient terms are considered. The ROUGE-K score is then calculated as the proportion of reference keywords present in the candidate answer. Further details on the keyword extraction methodology are provided in the dedicated section.
+To assess keyword relevance, we employ the ROUGE-K \cite{rouge_k} metric, which specifically measures the overlap of important keywords between the generated and reference answers. Keywords are extracted using an automated system that combines TF-IDF weighting with position-biased noun phrase detection, ensuring that only the most salient terms are considered. The ROUGE-K score is then calculated as the proportion of reference keywords present in the candidate answer. Further details on the keyword extraction methodology are provided (see the dedicated section \ref{sec:keyword_extraction}).
 
 \begin{equation}
     \text{ROUGE-K}(A, R) = \frac{|K(A) \cap K(R)|}{|K(R)|}
@@ -216,7 +225,16 @@ Our analysis reveals statistically significant divergence in confidence distribu
 
 \section{Methodology}
 
-We introduce two novel confidence scores to quantify model uncertainty under temperature perturbations:
+We introduce two confidence scoring metrics to quantify model uncertainty under temperature perturbations see figure \ref{fig:main_approach}:
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\columnwidth]{images/Main-approach.pdf}
+    \caption{Temperature-based confidence scoring method: responses at varied temperatures are compared via semantic-keyword metrics and regression analysis using 0.01 as the Temperature ground truth.}
+    \label{fig:main_approach}
+\end{figure}
+
 \begin{enumerate}
     \item \textbf{Temperature-Stabilized AUC Score}\\
     The first metric computes the area under the curve (AUC) of the Semantic-Keyword (SK) similarity score as a function of temperature, normalized by the area where the model's confidence does not degrade. This provides a robust measure of how consistently the model maintains correct answers as generation randomness increases.
@@ -354,6 +372,7 @@ While our framework demonstrates robust hallucination detection across multiple 
 
 
 \section{Keyword extraction}
+\label{sec:keyword_extraction}
 To comprehensively analyze hallucination detection through semantic similarity metrics, we implemented a suite of keyword extraction methodologies of varying complexity. Each approach was systematically evaluated against our benchmark datasets to determine optimal keyword identification for hallucination detection.
 
 \paragraph{Basic Filtering Approaches.}
